@@ -1,0 +1,19 @@
+configuration:
+  mesh_key:
+    name: Mesh key
+    description: Eight hexadecimal digits parsed from BRmesh
+  address:
+    name: Mesh address
+    description: Numeric BRmesh light address (the --id value)
+  device_name:
+    name: Device name
+    description: Name shown for the MQTT light in Home Assistant
+  adapter_index:
+    name: Bluetooth adapter index
+    description: Use 0 for hci0, 1 for hci1, and so on
+  advertise_seconds:
+    name: Advertisement duration
+    description: Seconds to repeat each command; 1.0 is the proven value
+  mqtt_topic_prefix:
+    name: MQTT topic prefix
+    description: Root topic for this controller

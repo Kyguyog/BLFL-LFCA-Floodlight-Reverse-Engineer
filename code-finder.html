@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastCon QR Decoder & Decryptor</title>
+    <!-- Include jsQR for decoding and CryptoJS for AES decryption -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            max-width: 650px;
+            margin: 40px auto;
+            padding: 20px;
+            text-align: center;
+        }
+        .card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        video {
+            width: 100%;
+            max-height: 350px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: #000;
+        }
+        .camera-select-container {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 1rem;
+            background: #fff;
+        }
+        .result-box {
+            margin-top: 5px;
+            padding: 15px;
+            background: #e8f5e9;
+            border: 1px solid #c8e6c9;
+            border-radius: 8px;
+            text-align: left;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 1rem;
+            display: none;
+        }
+        .result-box.active {
+            display: block;
+        }
+        h2 { margin-top: 0; font-size: 1.2rem; color: #2c3e50; }
+        .file-upload-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        input[type="file"] { display: none; }
+        .custom-file-upload {
+            border: 2px dashed #3498db;
+            display: inline-block;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 6px;
+            color: #3498db;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .custom-file-upload:hover {
+            background: #3498db;
+            color: white;
+        }
+        label.label-title {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #555;
+            text-align: left;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>FastCon QR Code Decryptor</h1>
+    
+    <div class="card">
+        <h2>Live Camera Scan</h2>
+        <div class="camera-select-container">
+            <label class="label-title">Select Camera:</label>
+            <select id="camera-select"></select>
+        </div>
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas" style="display: none;"></canvas>
+    </div>
+
+    <div class="card file-upload-section">
+        <h2>Upload Image / Take Photo</h2>
+        <label class="custom-file-upload">
+            <input type="file" id="qr-file-input" accept="image/*" />
+            Choose PNG / Image File
+        </label>
+        <div id="file-error" style="color: #e74c3c; font-size: 0.85rem; margin-top: 10px; display: none;"></div>
+    </div>
+
+    <div class="card">
+        <label class="label-title">Parsed Device & Mesh Key:</label>
+        <div id="decrypted-result" class="result-box">Waiting for QR scan...</div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const cameraSelect = document.getElementById('camera-select');
+        const canvasElement = document.getElementById('canvas');
+        const canvas = canvasElement.getContext('2d', { willReadFrequently: true });
+        const decryptedResultElement = document.getElementById('decrypted-result');
+        const fileErrorElement = document.getElementById('file-error');
+
+        const AES_KEY = CryptoJS.enc.Utf8.parse("brgdbrgdbrgdbrgd");
+        const AES_IV = CryptoJS.enc.Utf8.parse("0392039203920300");
+
+        let currentStream = null;
+        let scanningActive = true;
+
+        function appendField(parent, label, value) {
+            const row = document.createElement('div');
+            const title = document.createElement('strong');
+            title.textContent = `${label}: `;
+            row.appendChild(title);
+            row.appendChild(document.createTextNode(String(value)));
+            parent.appendChild(row);
+        }
+
+        function decryptAndShow(decodedText) {
+            try {
+                const decrypted = CryptoJS.AES.decrypt(
+                    { ciphertext: CryptoJS.enc.Base64.parse(decodedText) },
+                    AES_KEY,
+                    { iv: AES_IV, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 }
+                );
+                const clearText = decrypted.toString(CryptoJS.enc.Utf8);
+                if (!clearText) throw new Error("Decryption failed");
+
+                const parts = clearText.split(';');
+                const devicesJson = JSON.parse(parts[0]);
+                const meshKey = parts[1].trim();
+
+                decryptedResultElement.replaceChildren();
+                devicesJson.forEach(dev => {
+                    const card = document.createElement('div');
+                    card.style.marginBottom = '12px';
+                    appendField(card, 'Name', dev.n || 'Unknown Device');
+                    appendField(card, 'Mesh address (--id)', dev.a ?? 'missing');
+                    appendField(card, 'Device ID', dev.d ?? 'missing');
+                    appendField(card, 'Device type', dev.t ?? 'missing');
+                    appendField(card, 'Firmware', dev.v ?? 'missing');
+                    decryptedResultElement.appendChild(card);
+                });
+                appendField(decryptedResultElement, 'Mesh key (--key)', meshKey);
+                decryptedResultElement.classList.add('active');
+            } catch (e) {
+                decryptedResultElement.innerText = "Error parsing/decrypting QR data.";
+                decryptedResultElement.classList.add('active');
+            }
+        }
+
+        // Stop current active camera stream if any
+        function stopMediaTracks(stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+
+        // Start specific camera by ID
+        function startCamera(deviceId) {
+            if (currentStream) {
+                stopMediaTracks(currentStream);
+            }
+            const constraints = {
+                video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: "environment" }
+            };
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(stream => {
+                    currentStream = stream;
+                    video.srcObject = stream;
+                    video.setAttribute("playsinline", true);
+                    video.play();
+                })
+                .catch(err => {
+                    console.warn("Camera error:", err);
+                });
+        }
+
+        // Populate camera list and initialize
+        async function getCameras() {
+            try {
+                // Request temporary permission to enumerate labels properly on mobile devices
+                const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                stopMediaTracks(tempStream);
+
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                
+                cameraSelect.innerHTML = '';
+                videoDevices.forEach((device, index) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.text = device.label || `Camera ${index + 1}`;
+                    cameraSelect.appendChild(option);
+                });
+
+                if (videoDevices.length > 0) {
+                    // Default to back-facing camera if found, otherwise first available
+                    let preferredDevId = videoDevices[videoDevices.length - 1].deviceId;
+                    const backCam = videoDevices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('rear') || d.label.toLowerCase().includes('environment'));
+                    if (backCam) {
+                        preferredDevId = backCam.deviceId;
+                    }
+                    cameraSelect.value = preferredDevId;
+                    startCamera(preferredDevId);
+                }
+            } catch (err) {
+                console.warn("Error enumerating devices, falling back to default environment camera:", err);
+                startCamera(null);
+            }
+        }
+
+        // Switch camera when dropdown changes
+        cameraSelect.addEventListener('change', () => {
+            startCamera(cameraSelect.value);
+        });
+
+        // Continuous scanning loop
+        function tick() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA && scanningActive) {
+                canvasElement.height = video.videoHeight;
+                canvasElement.width = video.videoWidth;
+                canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+                const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                });
+                
+                if (code) {
+                    decryptAndShow(code.data);
+                }
+            }
+            requestAnimationFrame(tick);
+        }
+
+        // Handle File Upload Decoding (with solid white background fix for PNGs)
+        const fileInput = document.getElementById('qr-file-input');
+        fileInput.addEventListener('change', e => {
+            fileErrorElement.style.display = 'none';
+            if (e.target.files.length === 0) return;
+            const file = e.target.files[0];
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const img = new Image();
+                img.onload = function() {
+                    canvasElement.width = img.width;
+                    canvasElement.height = img.height;
+                    
+                    // Fill solid white background first
+                    canvas.fillStyle = "#FFFFFF";
+                    canvas.fillRect(0, 0, canvasElement.width, canvasElement.height);
+                    
+                    canvas.drawImage(img, 0, 0);
+                    const imageData = canvas.getImageData(0, 0, img.width, img.height);
+                    
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                        inversionAttempts: "attemptBoth",
+                    });
+                    
+                    if (code) {
+                        decryptAndShow(code.data);
+                    } else {
+                        fileErrorElement.innerText = "No QR code found in this PNG image file.";
+                        fileErrorElement.style.display = 'block';
+                    }
+                };
+                img.src = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // Initialize application
+        getCameras();
+        requestAnimationFrame(tick);
+    </script>
+</body>
+</html>
