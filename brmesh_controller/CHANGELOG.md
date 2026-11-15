@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0
+
+- Scan automatically at startup and publish a Home Assistant **Scan for lights**
+  button through MQTT discovery.
+- Decode FastCon discovery broadcasts and heartbeats.
+- Automatically bind lights found in their power-on pairing window, choose an
+  unused address, persist their device records, and create an entity per light.
+- Preserve the original configured light and migrate it into the persistent
+  device list when its discovery broadcast is received.
+
 ## 0.3.4
 
 - Remember the last RGB color and resend it with brightness-only MQTT commands,

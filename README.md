@@ -43,8 +43,10 @@ and proven to run with the phone/controller absent.
 
 [`brmesh_controller`](brmesh_controller/) is an installable Home Assistant OS
 App (formerly called an add-on). It obtains broker credentials from Supervisor,
-publishes an MQTT-discovered RGB/brightness light, and transmits through the
-Home Assistant machine's local Bluetooth adapter. See
+publishes MQTT-discovered RGB/brightness lights and a **Scan for lights**
+button, and transmits through the Home Assistant machine's local Bluetooth
+adapter. It scans at startup and can automatically bind lights found in their
+power-on pairing window. See
 [`brmesh_controller/DOCS.md`](brmesh_controller/DOCS.md) for setup and options.
 
 After this repository is pushed to GitHub, add its URL to the Home Assistant

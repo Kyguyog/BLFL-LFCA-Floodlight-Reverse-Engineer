@@ -30,6 +30,37 @@ class HomeAssistantProtocolTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             protocol.parse_key("1234")
 
+    def test_scan_bind_and_receive_vectors(self):
+        builder = protocol.FastConBuilder(0x40)
+        self.assertEqual(
+            builder.scan().hex(),
+            "6db64368931d0d445c3ec63e5f0f65ca0a67aa63130b71dd",
+        )
+        self.assertEqual(
+            builder.bind(
+                bytes.fromhex("ec0bf10f00e9"),
+                7,
+                bytes.fromhex("32323035"),
+                bytes.fromhex("5e367bc4"),
+            ).hex(),
+            "6db64368931d2d4767a92a35ae0065230d669851233ed69f",
+        )
+
+        discovery = protocol.parse_discovery(
+            bytes.fromhex("4eb17a50ec0bf10f00e9a1a85e367bc4")
+        )
+        self.assertIsNotNone(discovery)
+        self.assertEqual(discovery.device_id.hex(), "ec0bf10f00e9")
+        self.assertEqual(discovery.device_type, 43169)
+        self.assertEqual(discovery.reported_address, 1)
+
+        heartbeat = protocol.parse_heartbeat(
+            bytes.fromhex("6db64368931d3d5096b4ae391dfe09ce4196c66758fa4227"),
+            bytes.fromhex("32323035"),
+        )
+        self.assertIsNotNone(heartbeat)
+        self.assertEqual((heartbeat.address, heartbeat.group), (3, 9))
+
     @patch.object(protocol.time, "sleep")
     @patch.object(protocol.subprocess, "run")
     def test_advertiser_does_not_remove_before_add(self, run, sleep):

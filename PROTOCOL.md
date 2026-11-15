@@ -77,3 +77,9 @@ advertising PDUs.
 Packet construction was checked against the MIT-licensed `Fastcon.cpp` test
 vectors from `logichousepcb/brmesh-hub`, which in turn credits MoodyAPI,
 `dennispg/esphome-fastcon`, and `stromaa00/fastConLight`.
+
+Discovery, binding, and heartbeat parsing use the documented and hardware-tested
+formats from the same MIT-licensed `logichousepcb/brmesh-hub` implementation.
+Discovery is type 1; binding is type 2 encrypted with the discovered device key
+and carries `device ID + address + group + mesh key`; heartbeat confirmation is
+type 3 encrypted with the mesh key.

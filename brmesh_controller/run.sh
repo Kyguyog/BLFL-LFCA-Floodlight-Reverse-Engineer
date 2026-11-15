@@ -13,6 +13,7 @@ export BRMESH_ADDRESS="$(bashio::config 'address')"
 export BRMESH_DEVICE_NAME="$(bashio::config 'device_name')"
 export BRMESH_ADAPTER_INDEX="$(bashio::config 'adapter_index')"
 export BRMESH_RADIO_BACKEND="$(bashio::config 'radio_backend')"
+export BRMESH_AUTO_PAIR="$(bashio::config 'auto_pair')"
 export BRMESH_ADVERTISE_SECONDS="$(bashio::config 'advertise_seconds')"
 export BRMESH_MQTT_PREFIX="$(bashio::config 'mqtt_topic_prefix')"
 

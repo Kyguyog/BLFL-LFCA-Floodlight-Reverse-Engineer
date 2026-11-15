@@ -1,8 +1,8 @@
 # BRMesh Floodlight Controller
 
-This app controls one BLFL-LFCA/BroadLink FastCon light through the Bluetooth
-adapter attached to the Home Assistant OS machine. It creates a normal Home
-Assistant light entity through MQTT discovery.
+This app controls and pairs BLFL-LFCA/BroadLink FastCon lights through the
+Bluetooth adapter attached to the Home Assistant OS machine. It creates normal
+Home Assistant light entities through MQTT discovery.
 
 ## Before installing
 
@@ -28,6 +28,8 @@ BRMesh control advertisements for this app.
   adapter does not complete extended management commands, `btmgmt` automatically
   switches to a raw legacy HCI transmitter at the controller-compatible 100 ms
   interval.
+- `auto_pair`: When enabled, a discovered light is assigned an unused mesh
+  address and bound to the configured mesh key automatically.
 - `advertise_seconds`: How long each command is repeated. `1.0` is the proven
   reliable value; lower values respond faster but may be less reliable.
 - `mqtt_topic_prefix`: Root topic used by the bridge. Usually leave this as
@@ -35,6 +37,22 @@ BRMesh control advertisements for this app.
 
 Save the options, start the app, and inspect its Log tab. The new light should
 appear under **Settings > Devices & services > MQTT**.
+
+## Discovering and pairing lights
+
+The app scans once whenever it starts and creates a **Scan for lights** button
+under the BRMesh Controller MQTT device. A light only answers during its short
+power-on pairing window:
+
+1. Switch the light off at the wall for at least five seconds.
+2. Switch it on again.
+3. Press **Scan for lights** in Home Assistant.
+
+With `auto_pair` enabled, the app saves the device ID, device type, device key,
+and assigned mesh address under `/data/devices.json`, sends the FastCon bind
+command, and publishes the new light entity. A heartbeat from the assigned
+address is logged as pairing confirmation. The saved list survives app updates
+and restarts.
 
 ## Protection mode
 

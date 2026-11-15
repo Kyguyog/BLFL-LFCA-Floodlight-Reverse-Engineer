@@ -1,5 +1,5 @@
 name: BRMesh Floodlight Controller
-version: "0.3.4"
+version: "0.4.0"
 slug: brmesh_controller
 description: Control BLFL-LFCA/FastCon floodlights through MQTT discovery
 url: https://github.com/Kyguyog/BLFL-LFCA-Floodlight-Reverse-Engineer/tree/main/brmesh_controller
@@ -27,6 +27,7 @@ options:
   device_name: BRMesh Floodlight
   adapter_index: 0
   radio_backend: btmgmt
+  auto_pair: true
   advertise_seconds: 1.0
   mqtt_topic_prefix: brmesh
 schema:
@@ -35,5 +36,6 @@ schema:
   device_name: str
   adapter_index: int(0,255)
   radio_backend: list(bluez|btmgmt)
+  auto_pair: bool
   advertise_seconds: float
   mqtt_topic_prefix: str

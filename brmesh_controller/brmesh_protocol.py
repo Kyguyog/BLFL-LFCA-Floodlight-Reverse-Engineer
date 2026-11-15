@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import secrets
 import socket
@@ -9,8 +10,8 @@ import struct
 import subprocess
 import threading
 import time
-import logging
 from dataclasses import dataclass
+from typing import Callable
 
 
 DEFAULT_KEY = bytes.fromhex("5e367bc4")
@@ -85,27 +86,36 @@ class FastConBuilder:
             self.sequence = 1
         return self.sequence
 
-    def light(self, address: int, mesh_key: bytes, command: bytes) -> bytes:
-        if not 1 <= address <= 0x0FFF:
-            raise ValueError("light address must be in the range 1..4095")
-        if len(mesh_key) != 4:
-            raise ValueError("mesh key must contain four bytes")
-        if not 1 <= len(command) <= 10:
-            raise ValueError("light command must contain 1..10 bytes")
+    def _generate(
+        self,
+        command_type: int,
+        content: bytes,
+        key: bytes | None,
+        *,
+        forward: bool,
+        address_high: int = 0,
+    ) -> bytes:
+        if key is not None and len(key) != 4:
+            raise ValueError("FastCon key must contain four bytes")
+        if len(content) > 12:
+            raise ValueError("FastCon content cannot exceed 12 bytes")
 
-        content = (
-            bytes((2 | ((len(command) + 1) << 4), address & 0xFF)) + command
-        ).ljust(12, b"\0")
+        content = content.ljust(12, b"\0")
         body = bytearray(16)
-        body[0] = (address >> 8) | (5 << 4) | 0x80
+        body[0] = (
+            (address_high & 0x0F)
+            | ((command_type & 0x07) << 4)
+            | (0x80 if forward else 0)
+        )
         body[1] = self._next_sequence()
-        body[2] = mesh_key[3]
+        body[2] = key[3] if key is not None else 0xFF
         body[4:] = content
         body[3] = (sum(body[:3]) + sum(content)) & 0xFF
         for index in range(4):
             body[index] ^= DEFAULT_KEY[index]
+        encryption_key = key if key is not None else DEFAULT_KEY
         for index in range(12):
-            body[index + 4] ^= mesh_key[index & 3]
+            body[index + 4] ^= encryption_key[index & 3]
 
         rf = bytearray(RF_SKIP + 24)
         rf[RF_SKIP : RF_SKIP + 3] = RF_PREAMBLE
@@ -117,6 +127,114 @@ class FastConBuilder:
         rf[RF_SKIP + 22 : RF_SKIP + 24] = crc.to_bytes(2, "little")
         _whiten(rf)
         return bytes(rf[RF_SKIP:])
+
+    def scan(self) -> bytes:
+        """Ask lights in their power-on pairing window to announce themselves."""
+        return self._generate(0, bytes(12), None, forward=False)
+
+    def bind(
+        self, device_id: bytes, address: int, mesh_key: bytes, device_key: bytes
+    ) -> bytes:
+        if len(device_id) != 6:
+            raise ValueError("device ID must contain six bytes")
+        if not 1 <= address <= 255:
+            raise ValueError("pairing address must be in the range 1..255")
+        if len(mesh_key) != 4 or len(device_key) != 4:
+            raise ValueError("mesh and device keys must contain four bytes")
+        content = device_id + bytes((address, 1)) + mesh_key
+        return self._generate(2, content, device_key, forward=False)
+
+    def light(self, address: int, mesh_key: bytes, command: bytes) -> bytes:
+        if not 1 <= address <= 0x0FFF:
+            raise ValueError("light address must be in the range 1..4095")
+        if not 1 <= len(command) <= 10:
+            raise ValueError("light command must contain 1..10 bytes")
+        content = bytes((2 | ((len(command) + 1) << 4), address & 0xFF)) + command
+        return self._generate(
+            5, content, mesh_key, forward=True, address_high=address >> 8
+        )
+
+
+@dataclass(frozen=True)
+class Discovery:
+    device_id: bytes
+    device_type: int
+    device_key: bytes
+    reported_address: int
+
+
+@dataclass(frozen=True)
+class Heartbeat:
+    address: int
+    group: int
+
+
+LIGHT_TYPES = {0, 43049, 43050, 43051, 43168, 43169, 43709, 43745, 43754, 43759}
+
+
+def is_light_type(device_type: int) -> bool:
+    return device_type in LIGHT_TYPES
+
+
+def _body_checksum(header: bytes, content: bytes) -> int:
+    return (sum(header[:3]) + sum(content)) & 0xFF
+
+
+def parse_discovery(payload: bytes) -> Discovery | None:
+    """Parse a FastCon type-1 discovery manufacturer payload."""
+    if len(payload) not in (16, 18):
+        return None
+    selected: bytes | None = None
+    for offset in range(0, len(payload) - 15, 2):
+        body = payload[offset : offset + 16]
+        header = bytes(body[index] ^ DEFAULT_KEY[index] for index in range(4))
+        if ((header[0] >> 4) & 7) != 1:
+            continue
+        if selected is None:
+            selected = body
+        if _body_checksum(header, body[4:16]) == header[3]:
+            selected = body
+            break
+    if selected is None:
+        return None
+    return Discovery(
+        device_id=bytes(selected[4:10]),
+        device_type=selected[10] | (selected[11] << 8),
+        device_key=bytes(selected[12:16]),
+        reported_address=selected[2] ^ DEFAULT_KEY[2],
+    )
+
+
+def _unwrap_rf_frame(payload: bytes) -> bytes | None:
+    if len(payload) != 24:
+        return None
+    buffer = bytearray(RF_SKIP + len(payload))
+    buffer[RF_SKIP:] = payload
+    _whiten(buffer)
+    frame = buffer[RF_SKIP:]
+    if any(_reverse8(frame[index]) != RF_PREAMBLE[index] for index in range(3)):
+        return None
+    return bytes(frame[6:22])
+
+
+def parse_heartbeat(payload: bytes, mesh_key: bytes) -> Heartbeat | None:
+    """Parse a type-3 heartbeat encrypted with the configured mesh key."""
+    unwrapped = _unwrap_rf_frame(payload)
+    if unwrapped is not None:
+        payload = unwrapped
+    if not 16 <= len(payload) <= 24 or len(mesh_key) != 4:
+        return None
+    header = bytes(payload[index] ^ DEFAULT_KEY[index] for index in range(4))
+    if ((header[0] >> 4) & 7) != 3:
+        return None
+    content = bytes(
+        value ^ mesh_key[index & 3] for index, value in enumerate(payload[4:])
+    )
+    if _body_checksum(header, content) != header[3] or (content[0] & 0x0F) != 4:
+        return None
+    return Heartbeat(
+        address=content[1] | ((header[0] & 0x0F) << 8), group=content[2]
+    )
 
 
 def _level(percent: float) -> int:
@@ -180,6 +298,88 @@ class LightCommandState:
         # This lamp ignores the short one-byte level command. Resending the
         # remembered RGB channels applies brightness without changing color.
         return command_rgb(self.red, self.green, self.blue, self.brightness)
+
+
+class BluezScanner:
+    """Receive FastCon manufacturer data through the host BlueZ scanner."""
+
+    def __init__(
+        self,
+        adapter: int,
+        callback: Callable[[bytes, int], None],
+        ready_callback: Callable[[], None] | None = None,
+    ) -> None:
+        self.adapter = adapter
+        self.callback = callback
+        self.ready_callback = ready_callback
+
+    def run(self) -> None:
+        try:
+            import dbus
+            import dbus.mainloop.glib
+            from gi.repository import GLib
+        except ImportError as error:
+            raise RuntimeError("BlueZ scanner dependencies are not installed") from error
+
+        dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+        bus = dbus.SystemBus()
+        adapter_path = f"/org/bluez/hci{self.adapter}"
+        adapter = dbus.Interface(
+            bus.get_object("org.bluez", adapter_path), "org.bluez.Adapter1"
+        )
+
+        def consume(properties) -> None:
+            manufacturer = properties.get("ManufacturerData")
+            if not manufacturer:
+                return
+            data = manufacturer.get(dbus.UInt16(0xFFF0))
+            if data is None:
+                data = manufacturer.get(0xFFF0)
+            if data is None:
+                return
+            rssi = int(properties.get("RSSI", -127))
+            self.callback(bytes(int(value) for value in data), rssi)
+
+        def properties_changed(interface, changed, invalidated, path=None) -> None:
+            if interface == "org.bluez.Device1":
+                consume(changed)
+
+        def interfaces_added(path, interfaces) -> None:
+            properties = interfaces.get("org.bluez.Device1")
+            if properties:
+                consume(properties)
+
+        bus.add_signal_receiver(
+            properties_changed,
+            dbus_interface="org.freedesktop.DBus.Properties",
+            signal_name="PropertiesChanged",
+            path_keyword="path",
+        )
+        bus.add_signal_receiver(
+            interfaces_added,
+            dbus_interface="org.freedesktop.DBus.ObjectManager",
+            signal_name="InterfacesAdded",
+        )
+        adapter.SetDiscoveryFilter(
+            dbus.Dictionary(
+                {
+                    "Transport": dbus.String("le"),
+                    # FastCon lights share an address; every payload matters.
+                    "DuplicateData": dbus.Boolean(True),
+                },
+                signature="sv",
+            )
+        )
+        try:
+            adapter.StartDiscovery()
+        except dbus.exceptions.DBusException as error:
+            if error.get_dbus_name() != "org.bluez.Error.InProgress":
+                raise RuntimeError(f"could not start host BLE scan: {error}") from error
+
+        LOG.info("Listening for FastCon advertisements on hci%d", self.adapter)
+        if self.ready_callback is not None:
+            self.ready_callback()
+        GLib.MainLoop().run()
 
 
 class BtmgmtAdvertiser:
