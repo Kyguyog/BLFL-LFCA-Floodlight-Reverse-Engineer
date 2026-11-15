@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.4
+
+- Remember the last RGB color and resend it with brightness-only MQTT commands,
+  using the full color command format accepted by this lamp.
+- Preserve the last color and brightness across off/on commands while the app
+  remains running.
+
 ## 0.3.3
 
 - Use the controller-required 100 ms minimum interval for legacy

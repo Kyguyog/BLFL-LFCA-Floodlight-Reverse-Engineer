@@ -2,7 +2,7 @@ import struct
 import unittest
 from unittest.mock import patch
 
-from brmesh_controller.brmesh_protocol import HciAdvertiser
+from brmesh_controller.brmesh_protocol import HciAdvertiser, LightCommandState
 
 
 class FakeHciSocket:
@@ -48,6 +48,27 @@ class HciAdvertiserTests(unittest.TestCase):
         self.assertTrue(all(len(value) == 16 for _, _, value in radio.filters))
         self.assertTrue(radio.closed)
         sleep.assert_called_once_with(1.0)
+
+
+class LightCommandStateTests(unittest.TestCase):
+    def test_brightness_reuses_last_color(self):
+        state = LightCommandState()
+        state.command_from_json(
+            {"state": "ON", "brightness": 255, "color": {"r": 255, "g": 0, "b": 0}}
+        )
+
+        command = state.command_from_json({"state": "ON", "brightness": 128})
+
+        self.assertEqual(command[1:], bytes((0, 255, 0, 0, 0)))
+        self.assertEqual(command[0], 0x80 | round((128 * 100 / 255) * 127 / 100))
+
+    def test_power_cycle_preserves_color_and_brightness(self):
+        state = LightCommandState()
+        expected = state.command_from_json(
+            {"state": "ON", "brightness": 64, "color": {"r": 0, "g": 0, "b": 255}}
+        )
+        self.assertEqual(state.command_from_json({"state": "OFF"}), b"\0")
+        self.assertEqual(state.command_from_json({"state": "ON"}), expected)
 
 
 if __name__ == "__main__":

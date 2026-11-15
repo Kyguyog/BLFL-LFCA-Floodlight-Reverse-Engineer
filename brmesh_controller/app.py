@@ -17,8 +17,7 @@ from brmesh_protocol import (
     BluezAdvertiser,
     BtmgmtAdvertiser,
     FastConBuilder,
-    command_power,
-    command_rgb,
+    LightCommandState,
     parse_key,
 )
 
@@ -50,6 +49,7 @@ class Bridge:
         self.discovery_topic = f"homeassistant/light/brmesh/{self.object_id}/config"
         self.commands: queue.Queue[bytes] = queue.Queue(maxsize=1)
         self.builder = FastConBuilder(secrets.randbelow(254) + 1)
+        self.light_state = LightCommandState()
         if self.radio_backend == "bluez":
             self.advertiser = BluezAdvertiser(self.duration, self.adapter)
         elif self.radio_backend == "btmgmt":
@@ -88,7 +88,7 @@ class Bridge:
                 },
                 "origin": {
                     "name": "BRMesh Floodlight Controller",
-                    "sw_version": "0.3.3",
+                    "sw_version": "0.3.4",
                     "support_url": "https://github.com/Kyguyog/BLFL-LFCA-Floodlight-Reverse-Engineer",
                 },
             },
@@ -112,19 +112,8 @@ class Bridge:
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
             LOG.error("Ignoring invalid light command: %s", error)
 
-    @staticmethod
-    def command_from_json(payload: dict) -> bytes:
-        if str(payload.get("state", "ON")).upper() == "OFF":
-            return command_power(False)
-
-        brightness = max(0, min(255, int(payload.get("brightness", 255))))
-        percent = brightness * 100 / 255
-        color = payload.get("color")
-        if color is not None:
-            return command_rgb(
-                int(color["r"]), int(color["g"]), int(color["b"]), percent
-            )
-        return command_power(brightness > 0, percent)
+    def command_from_json(self, payload: dict) -> bytes:
+        return self.light_state.command_from_json(payload)
 
     def enqueue(self, command: bytes) -> None:
         try:

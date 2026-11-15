@@ -154,6 +154,34 @@ def command_rgb(red: int, green: int, blue: int, brightness: float = 100) -> byt
     )
 
 
+@dataclass
+class LightCommandState:
+    """Keep the color fields required by FastCon brightness commands."""
+
+    red: int = 255
+    green: int = 255
+    blue: int = 255
+    brightness: float = 100
+
+    def command_from_json(self, payload: dict) -> bytes:
+        if str(payload.get("state", "ON")).upper() == "OFF":
+            return command_power(False)
+
+        if "brightness" in payload:
+            raw_brightness = max(0, min(255, int(payload["brightness"])))
+            self.brightness = raw_brightness * 100 / 255
+
+        color = payload.get("color")
+        if color is not None:
+            self.red = int(color["r"])
+            self.green = int(color["g"])
+            self.blue = int(color["b"])
+
+        # This lamp ignores the short one-byte level command. Resending the
+        # remembered RGB channels applies brightness without changing color.
+        return command_rgb(self.red, self.green, self.blue, self.brightness)
+
+
 class BtmgmtAdvertiser:
     def __init__(self, duration: float, adapter: int, instance: int = 1) -> None:
         self.duration = duration
