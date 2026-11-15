@@ -274,7 +274,7 @@ class HciAdvertiser:
     def _command(self, radio: socket.socket, opcode: int, parameters: bytes) -> None:
         # Receive command completion/status events for this opcode only.
         event_filter = struct.pack(
-            "=IIIH", 1 << self.HCI_EVENT_PKT, 0xFFFFFFFF, 0xFFFFFFFF, opcode
+            "=IIIH2x", 1 << self.HCI_EVENT_PKT, 0xFFFFFFFF, 0xFFFFFFFF, opcode
         )
         radio.setsockopt(self.SOL_HCI, socket.HCI_FILTER, event_filter)
         radio.sendall(

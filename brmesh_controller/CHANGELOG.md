@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2
+
+- Pad the raw Linux HCI socket filter to its required 16-byte ABI size.
+
 ## 0.3.1
 
 - Fall back automatically to direct legacy HCI commands when an HA OS adapter

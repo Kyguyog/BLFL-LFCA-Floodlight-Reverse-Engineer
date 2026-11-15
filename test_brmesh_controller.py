@@ -10,9 +10,10 @@ class FakeHciSocket:
         self.commands = []
         self.last_opcode = None
         self.closed = False
+        self.filters = []
 
-    def setsockopt(self, *args):
-        pass
+    def setsockopt(self, level, option, value):
+        self.filters.append((level, option, value))
 
     def sendall(self, packet):
         self.last_opcode = struct.unpack_from("<H", packet, 1)[0]
@@ -44,6 +45,7 @@ class HciAdvertiserTests(unittest.TestCase):
         self.assertEqual(data[8:], bytes(range(24)))
         self.assertEqual(radio.commands[3][4:], b"\x01")
         self.assertEqual(radio.commands[4][4:], b"\x00")
+        self.assertTrue(all(len(value) == 16 for _, _, value in radio.filters))
         self.assertTrue(radio.closed)
         sleep.assert_called_once_with(1.0)
 
