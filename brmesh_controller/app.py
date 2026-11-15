@@ -14,6 +14,7 @@ import threading
 import paho.mqtt.client as mqtt
 
 from brmesh_protocol import (
+    BluezAdvertiser,
     BtmgmtAdvertiser,
     FastConBuilder,
     command_power,
@@ -40,6 +41,7 @@ class Bridge:
         self.name = env("BRMESH_DEVICE_NAME")
         self.adapter = int(env("BRMESH_ADAPTER_INDEX", "0"))
         self.duration = float(env("BRMESH_ADVERTISE_SECONDS", "1.0"))
+        self.radio_backend = env("BRMESH_RADIO_BACKEND", "bluez")
         prefix = env("BRMESH_MQTT_PREFIX", "brmesh").strip("/")
         self.object_id = f"light_{self.address}"
         self.base_topic = f"{prefix}/{self.object_id}"
@@ -48,7 +50,12 @@ class Bridge:
         self.discovery_topic = f"homeassistant/light/brmesh/{self.object_id}/config"
         self.commands: queue.Queue[bytes] = queue.Queue(maxsize=1)
         self.builder = FastConBuilder(secrets.randbelow(254) + 1)
-        self.advertiser = BtmgmtAdvertiser(self.duration, self.adapter)
+        if self.radio_backend == "bluez":
+            self.advertiser = BluezAdvertiser(self.duration, self.adapter)
+        elif self.radio_backend == "btmgmt":
+            self.advertiser = BtmgmtAdvertiser(self.duration, self.adapter)
+        else:
+            raise RuntimeError(f"unknown radio backend {self.radio_backend!r}")
         self.client = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2,
             client_id=f"brmesh-controller-{self.address}",
@@ -81,7 +88,7 @@ class Bridge:
                 },
                 "origin": {
                     "name": "BRMesh Floodlight Controller",
-                    "sw_version": "0.1.1",
+                    "sw_version": "0.2.0",
                     "support_url": "https://github.com/Kyguyog/BLFL-LFCA-Floodlight-Reverse-Engineer",
                 },
             },

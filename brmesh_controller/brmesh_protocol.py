@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
+import secrets
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
 
@@ -201,3 +204,111 @@ class BtmgmtAdvertiser:
                     "remove advertisement",
                     check=False,
                 )
+
+
+class BluezAdvertiser:
+    """Register a fast legacy advertisement with the host BlueZ service."""
+
+    def __init__(self, duration: float, adapter: int) -> None:
+        self.duration = duration
+        self.adapter = adapter
+
+    def send(self, manufacturer_data: bytes) -> None:
+        try:
+            import dbus
+            import dbus.mainloop.glib
+            import dbus.service
+            from gi.repository import GLib
+        except ImportError as error:
+            raise RuntimeError("BlueZ backend dependencies are not installed") from error
+
+        dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+        bus = dbus.SystemBus()
+        manager_iface = "org.bluez.LEAdvertisingManager1"
+        objects = dbus.Interface(
+            bus.get_object("org.bluez", "/"), "org.freedesktop.DBus.ObjectManager"
+        ).GetManagedObjects()
+        preferred_path = f"/org/bluez/hci{self.adapter}"
+        adapter_path = next(
+            (
+                path
+                for path, interfaces in objects.items()
+                if path == preferred_path and manager_iface in interfaces
+            ),
+            None,
+        )
+        if adapter_path is None:
+            raise RuntimeError(
+                f"host BlueZ does not expose hci{self.adapter} with LE advertising support"
+            )
+
+        advert_iface = "org.bluez.LEAdvertisement1"
+        props_iface = "org.freedesktop.DBus.Properties"
+        path = f"/org/brmesh/advertisement/{os.getpid()}_{secrets.randbelow(1_000_000)}"
+
+        class Advertisement(dbus.service.Object):
+            @dbus.service.method(props_iface, in_signature="s", out_signature="a{sv}")
+            def GetAll(self, interface: str):
+                if interface != advert_iface:
+                    raise dbus.exceptions.DBusException(
+                        "org.freedesktop.DBus.Error.InvalidArgs"
+                    )
+                return {
+                    "Type": dbus.String("broadcast"),
+                    "ManufacturerData": dbus.Dictionary(
+                        {
+                            dbus.UInt16(0xFFF0): dbus.Array(
+                                manufacturer_data, signature="y"
+                            )
+                        },
+                        signature="qv",
+                    ),
+                    # Explicit AD type 0x01 keeps the required flags before
+                    # manufacturer AD type 0xff.
+                    "Data": dbus.Dictionary(
+                        {
+                            dbus.Byte(0x01): dbus.Array(
+                                (dbus.Byte(0x02),), signature="y"
+                            )
+                        },
+                        signature="yv",
+                    ),
+                    "MinInterval": dbus.UInt32(20),
+                    "MaxInterval": dbus.UInt32(30),
+                }
+
+            @dbus.service.method(advert_iface, in_signature="", out_signature="")
+            def Release(self):
+                return None
+
+        advert = Advertisement(bus, path)
+        manager = dbus.Interface(bus.get_object("org.bluez", adapter_path), manager_iface)
+        loop = GLib.MainLoop()
+        registration_error: list[Exception] = []
+        registered = threading.Event()
+
+        def registration_succeeded() -> None:
+            registered.set()
+            GLib.timeout_add(max(1, round(self.duration * 1000)), loop.quit)
+
+        def registration_failed(error: Exception) -> None:
+            registration_error.append(error)
+            loop.quit()
+
+        manager.RegisterAdvertisement(
+            dbus.ObjectPath(path),
+            {},
+            reply_handler=registration_succeeded,
+            error_handler=registration_failed,
+        )
+        loop.run()
+        try:
+            if registration_error:
+                raise RuntimeError(
+                    f"host BlueZ rejected the advertisement: {registration_error[0]}"
+                )
+            if not registered.is_set():
+                raise RuntimeError("host BlueZ did not register the advertisement")
+            manager.UnregisterAdvertisement(dbus.ObjectPath(path))
+        finally:
+            advert.remove_from_connection()

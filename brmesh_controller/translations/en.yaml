@@ -11,6 +11,9 @@ configuration:
   adapter_index:
     name: Bluetooth adapter index
     description: Use 0 for hci0, 1 for hci1, and so on
+  radio_backend:
+    name: Radio backend
+    description: Use bluez for Home Assistant OS or btmgmt for direct Linux management
   advertise_seconds:
     name: Advertisement duration
     description: Seconds to repeat each command; 1.0 is the proven value

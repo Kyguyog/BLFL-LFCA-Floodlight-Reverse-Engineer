@@ -22,6 +22,9 @@ BRMesh control advertisements for this app.
 - `address`: The numeric BRmesh mesh address, from 1 to 4095.
 - `device_name`: The name shown in Home Assistant.
 - `adapter_index`: Linux Bluetooth adapter number; `0` means `hci0`.
+- `radio_backend`: `bluez` uses HA OS's host Bluetooth service and is the
+  default. `btmgmt` is the raw backend proven on ordinary Linux, but some HA OS
+  installations do not expose its management socket to Apps.
 - `advertise_seconds`: How long each command is repeated. `1.0` is the proven
   reliable value; lower values respond faster but may be less reliable.
 - `mqtt_topic_prefix`: Root topic used by the bridge. Usually leave this as

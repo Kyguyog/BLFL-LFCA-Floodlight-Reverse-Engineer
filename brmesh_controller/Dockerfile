@@ -1,8 +1,8 @@
 ARG BUILD_FROM=ghcr.io/home-assistant/base:3.24
 FROM ${BUILD_FROM}
 
-RUN apk add --no-cache bluez bluez-btmgmt python3 py3-pip \
-    && python3 -m venv /opt/brmesh-venv \
+RUN apk add --no-cache bluez bluez-btmgmt py3-dbus py3-gobject3 python3 py3-pip \
+    && python3 -m venv --system-site-packages /opt/brmesh-venv \
     && /opt/brmesh-venv/bin/pip install --no-cache-dir paho-mqtt==2.1.0
 
 WORKDIR /app

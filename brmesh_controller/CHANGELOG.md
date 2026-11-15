@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0
+
+- Add a host BlueZ D-Bus advertising backend for Home Assistant OS.
+- Set the required advertisement flags and 20-30 ms interval through BlueZ.
+- Retain `btmgmt` as an optional backend for systems exposing raw management.
+
 ## 0.1.1
 
 - Do not remove a nonexistent advertising instance before transmission. Some
