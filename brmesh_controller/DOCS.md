@@ -4,10 +4,9 @@ This app controls and pairs BLFL-LFCA/BroadLink FastCon lights through the
 Bluetooth adapter attached to the Home Assistant OS machine. It creates normal
 Home Assistant light entities through MQTT discovery.
 
-Each discovered floodlight has an RGB entity plus a **White LEDs** entity. The
-white entity switches RGBW models to their dedicated fixed-white LEDs and
-controls their brightness. Both entities include power controls, though
-switching either entity off turns off the whole physical floodlight.
+Each discovered RGBW floodlight is exposed as one entity with **Color** and
+**White** modes. Color controls the RGB LEDs; White switches to the dedicated
+fixed-white LEDs. Brightness and power retain the most recently selected mode.
 
 ## Before installing
 

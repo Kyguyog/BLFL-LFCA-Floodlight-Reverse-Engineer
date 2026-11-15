@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0
+
+- Combine RGB and fixed-white controls into each original Home Assistant light
+  entity using the valid `rgb` + `white` mode pair.
+- Remove the temporary separate **White LEDs** MQTT entities on upgrade.
+- Preserve the last selected RGB/white mode for power and brightness changes.
+
 ## 0.5.3
 
 - Advertise the fixed-white helper as a brightness light, because current Home

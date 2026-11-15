@@ -1,5 +1,5 @@
 name: BRMesh Floodlight Controller
-version: "0.5.3"
+version: "0.6.0"
 slug: brmesh_controller
 description: Control BLFL-LFCA/FastCon floodlights through MQTT discovery
 url: https://github.com/Kyguyog/BLFL-LFCA-Floodlight-Reverse-Engineer/tree/main/brmesh_controller

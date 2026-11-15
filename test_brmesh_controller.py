@@ -5,7 +5,6 @@ from unittest.mock import patch
 from brmesh_controller.brmesh_protocol import (
     HciAdvertiser,
     LightCommandState,
-    WhiteCommandState,
 )
 
 
@@ -74,13 +73,12 @@ class LightCommandStateTests(unittest.TestCase):
         self.assertEqual(state.command_from_json({"state": "OFF"}), b"\0")
         self.assertEqual(state.command_from_json({"state": "ON"}), expected)
 
-class WhiteCommandStateTests(unittest.TestCase):
     def test_fixed_rgbw_white_payload_and_brightness(self):
-        state = WhiteCommandState()
+        state = LightCommandState()
         command = state.command_from_json(
             {
                 "state": "ON",
-                "brightness": 255,
+                "white": 255,
             }
         )
         self.assertEqual(command, bytes((0xFF, 0, 0, 0, 0x7F, 0x7F)))
@@ -89,10 +87,18 @@ class WhiteCommandStateTests(unittest.TestCase):
         self.assertEqual(dimmed[1:], bytes((0, 0, 0, 0x7F, 0x7F)))
 
     def test_white_power_cycle_preserves_brightness(self):
-        state = WhiteCommandState()
-        white = state.command_from_json({"state": "ON", "brightness": 64})
+        state = LightCommandState()
+        white = state.command_from_json({"state": "ON", "white": 64})
         self.assertEqual(state.command_from_json({"state": "OFF"}), b"\0")
         self.assertEqual(state.command_from_json({"state": "ON"}), white)
+
+    def test_switch_from_white_back_to_rgb(self):
+        state = LightCommandState()
+        state.command_from_json({"state": "ON", "white": 255})
+        red = state.command_from_json(
+            {"state": "ON", "color": {"r": 255, "g": 0, "b": 0}}
+        )
+        self.assertEqual(red, bytes((0xFF, 0, 255, 0, 0, 0)))
 
 
 if __name__ == "__main__":

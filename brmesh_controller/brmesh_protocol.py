@@ -282,12 +282,13 @@ def command_white(warm: int, cold: int, brightness: float = 100) -> bytes:
 
 @dataclass
 class LightCommandState:
-    """Keep the RGB fields required by FastCon brightness commands."""
+    """Keep the RGB/white mode required by FastCon brightness commands."""
 
     red: int = 255
     green: int = 255
     blue: int = 255
     brightness: float = 100
+    mode: str = "rgb"
 
     def command_from_json(self, payload: dict) -> bytes:
         if str(payload.get("state", "ON")).upper() == "OFF":
@@ -302,29 +303,24 @@ class LightCommandState:
             self.red = int(color["r"])
             self.green = int(color["g"])
             self.blue = int(color["b"])
+            self.mode = "rgb"
+
+        if "white" in payload:
+            # Home Assistant's white parameter carries the white-mode
+            # brightness; it omits the separate brightness parameter. Give an
+            # explicit white request precedence if a client includes old color
+            # fields in the same JSON object.
+            raw_white = max(0, min(255, int(payload["white"])))
+            self.brightness = raw_white * 100 / 255
+            self.mode = "white"
 
         # This lamp ignores the short one-byte level command. Resending the
-        # remembered RGB channels applies brightness without changing color.
+        # remembered mode and channels applies brightness without changing it.
+        if self.mode == "white":
+            # Type 43169 is RGBW. The captured BRmesh app white-mode payload
+            # uses the fixed pair 0x7f, 0x7f rather than a CCT mix.
+            return command_white(0x7F, 0x7F, self.brightness)
         return command_rgb(self.red, self.green, self.blue, self.brightness)
-
-
-@dataclass
-class WhiteCommandState:
-    """Switch an RGBW FastCon light to its dedicated white LEDs."""
-
-    brightness: float = 100
-
-    def command_from_json(self, payload: dict) -> bytes:
-        if str(payload.get("state", "ON")).upper() == "OFF":
-            return command_power(False)
-
-        if "brightness" in payload:
-            raw_brightness = max(0, min(255, int(payload["brightness"])))
-            self.brightness = raw_brightness * 100 / 255
-
-        # Device type 43169 is RGBW, not tunable CCT. The BRmesh app's
-        # captured white-mode payload sets both protocol white bytes to 0x7f.
-        return command_white(0x7F, 0x7F, self.brightness)
 
 
 class BluezScanner:
