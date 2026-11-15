@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0
+
+- Expose each floodlight as an RGBWW Home Assistant light so its dedicated
+  warm- and cool-white LEDs can be controlled from the existing entity.
+- Preserve the selected RGB or white mode when changing brightness or power.
+
 ## 0.4.1
 
 - Add a **Keep manually configured light** option. Disabling it removes the

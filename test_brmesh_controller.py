@@ -70,6 +70,34 @@ class LightCommandStateTests(unittest.TestCase):
         self.assertEqual(state.command_from_json({"state": "OFF"}), b"\0")
         self.assertEqual(state.command_from_json({"state": "ON"}), expected)
 
+    def test_cool_white_and_brightness(self):
+        state = LightCommandState()
+        command = state.command_from_json(
+            {
+                "state": "ON",
+                "brightness": 255,
+                "color": {"r": 0, "g": 0, "b": 0, "c": 255, "w": 0},
+            }
+        )
+        self.assertEqual(command, bytes((0xFF, 0, 0, 0, 0, 255)))
+
+        dimmed = state.command_from_json({"state": "ON", "brightness": 128})
+        self.assertEqual(dimmed[1:], bytes((0, 0, 0, 0, 255)))
+
+    def test_warm_white_and_switch_back_to_rgb(self):
+        state = LightCommandState()
+        warm = state.command_from_json(
+            {"state": "ON", "color": {"r": 0, "g": 0, "b": 0, "c": 0, "w": 255}}
+        )
+        self.assertEqual(warm, bytes((0xFF, 0, 0, 0, 255, 0)))
+        self.assertEqual(state.command_from_json({"state": "OFF"}), b"\0")
+        self.assertEqual(state.command_from_json({"state": "ON"}), warm)
+
+        red = state.command_from_json(
+            {"state": "ON", "color": {"r": 255, "g": 0, "b": 0, "c": 0, "w": 0}}
+        )
+        self.assertEqual(red, bytes((0xFF, 0, 255, 0, 0, 0)))
+
 
 if __name__ == "__main__":
     unittest.main()

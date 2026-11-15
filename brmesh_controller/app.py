@@ -29,7 +29,7 @@ from brmesh_protocol import (
 )
 
 
-VERSION = "0.4.1"
+VERSION = "0.5.0"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 LOG = logging.getLogger("brmesh-controller")
 
@@ -188,7 +188,7 @@ class Bridge:
                 "command_topic": f"{self.light_base(light)}/set",
                 "schema": "json",
                 "brightness": True,
-                "supported_color_modes": ["rgb"],
+                "supported_color_modes": ["rgbww"],
                 "optimistic": True,
                 "availability_topic": self.availability_topic,
                 "device": {

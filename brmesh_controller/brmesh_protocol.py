@@ -272,13 +272,23 @@ def command_rgb(red: int, green: int, blue: int, brightness: float = 100) -> byt
     )
 
 
+def command_white(warm: int, cold: int, brightness: float = 100) -> bytes:
+    if any(not 0 <= value <= 255 for value in (warm, cold)):
+        raise ValueError("warm/cold channels must be in the range 0..255")
+    if (warm == 0 and cold == 0) or brightness == 0:
+        return command_power(False)
+    return bytes((0x80 | _level(brightness), 0, 0, 0, warm, cold))
+
+
 @dataclass
 class LightCommandState:
-    """Keep the color fields required by FastCon brightness commands."""
+    """Keep RGBWW fields required by FastCon brightness commands."""
 
     red: int = 255
     green: int = 255
     blue: int = 255
+    warm: int = 0
+    cold: int = 0
     brightness: float = 100
 
     def command_from_json(self, payload: dict) -> bytes:
@@ -291,12 +301,18 @@ class LightCommandState:
 
         color = payload.get("color")
         if color is not None:
-            self.red = int(color["r"])
-            self.green = int(color["g"])
-            self.blue = int(color["b"])
+            self.red = int(color.get("r", 0))
+            self.green = int(color.get("g", 0))
+            self.blue = int(color.get("b", 0))
+            # Home Assistant names RGBWW channels c=cool and w=warm.
+            # FastCon stores them in the opposite order: warm, cold.
+            self.cold = int(color.get("c", 0))
+            self.warm = int(color.get("w", 0))
 
         # This lamp ignores the short one-byte level command. Resending the
-        # remembered RGB channels applies brightness without changing color.
+        # remembered channels applies brightness without changing color mode.
+        if self.warm or self.cold:
+            return command_white(self.warm, self.cold, self.brightness)
         return command_rgb(self.red, self.green, self.blue, self.brightness)
 
 

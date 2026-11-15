@@ -4,6 +4,10 @@ This app controls and pairs BLFL-LFCA/BroadLink FastCon lights through the
 Bluetooth adapter attached to the Home Assistant OS machine. It creates normal
 Home Assistant light entities through MQTT discovery.
 
+Each discovered light is exposed as one RGBWW entity. Home Assistant's color
+controls can select RGB color or the dedicated warm/cool-white LEDs; brightness
+and power changes retain the most recently selected mode.
+
 ## Before installing
 
 Install and start the official **Mosquitto broker** app, then add the **MQTT**
