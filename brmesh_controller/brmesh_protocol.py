@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import os
 import secrets
+import socket
+import struct
 import subprocess
 import threading
 import time
+import logging
 from dataclasses import dataclass
 
 
@@ -14,6 +17,8 @@ DEFAULT_KEY = bytes.fromhex("5e367bc4")
 FASTCON_ADDRESS = bytes((0xC1, 0xC2, 0xC3))
 RF_PREAMBLE = bytes((0x71, 0x0F, 0x55))
 RF_SKIP = 15
+
+LOG = logging.getLogger(__name__)
 
 
 def raw_advertisement(frame: bytes, flags: int = 0x02) -> bytes:
@@ -154,6 +159,8 @@ class BtmgmtAdvertiser:
         self.duration = duration
         self.adapter = adapter
         self.instance = instance
+        self.hci_fallback = HciAdvertiser(duration, adapter)
+        self.use_hci_fallback = False
 
     def _run(self, arguments: list[str], action: str, *, check: bool = True) -> None:
         try:
@@ -177,24 +184,48 @@ class BtmgmtAdvertiser:
             raise RuntimeError(f"btmgmt could not {action}: {detail}")
 
     def send(self, manufacturer_data: bytes) -> None:
+        if self.use_hci_fallback:
+            self.hci_fallback.send(manufacturer_data)
+            return
+
         payload = raw_advertisement(manufacturer_data)
         added = False
+        configured = False
         try:
-            self._run(
-                [
-                    "add-ext-adv-params",
-                    "-r",
-                    "0x20",
-                    "-x",
-                    "0x30",
-                    str(self.instance),
-                ],
-                "configure advertising",
-            )
-            self._run(
-                ["add-ext-adv-data", "-d", payload.hex(), str(self.instance)],
-                "set advertising data",
-            )
+            try:
+                self._run(
+                    [
+                        "add-ext-adv-params",
+                        "-r",
+                        "0x20",
+                        "-x",
+                        "0x30",
+                        str(self.instance),
+                    ],
+                    "configure advertising",
+                )
+                configured = True
+                self._run(
+                    ["add-ext-adv-data", "-d", payload.hex(), str(self.instance)],
+                    "set advertising data",
+                )
+            except RuntimeError as error:
+                # Some HA OS controllers never complete the extended management
+                # command. A raw legacy HCI command uses the same local radio but
+                # avoids that controller/driver path and preserves the exact PDU.
+                if configured:
+                    self._run(
+                        ["rm-adv", str(self.instance)],
+                        "remove incomplete advertisement",
+                        check=False,
+                    )
+                LOG.warning(
+                    "%s; switching permanently to the legacy HCI transmitter",
+                    error,
+                )
+                self.use_hci_fallback = True
+                self.hci_fallback.send(manufacturer_data)
+                return
             added = True
             time.sleep(self.duration)
         finally:
@@ -204,6 +235,123 @@ class BtmgmtAdvertiser:
                     "remove advertisement",
                     check=False,
                 )
+
+
+class HciAdvertiser:
+    """Transmit an exact legacy advertisement through raw HCI commands."""
+
+    HCI_CHANNEL_RAW = 0
+    HCI_COMMAND_PKT = 0x01
+    HCI_EVENT_PKT = 0x04
+    EVT_CMD_COMPLETE = 0x0E
+    EVT_CMD_STATUS = 0x0F
+    SOL_HCI = 0
+
+    def __init__(self, duration: float, adapter: int) -> None:
+        self.duration = duration
+        self.adapter = adapter
+
+    @staticmethod
+    def _opcode(ogf: int, ocf: int) -> int:
+        return (ogf << 10) | ocf
+
+    def _open(self) -> socket.socket:
+        try:
+            radio = socket.socket(
+                socket.AF_BLUETOOTH,
+                socket.SOCK_RAW | getattr(socket, "SOCK_CLOEXEC", 0),
+                socket.BTPROTO_HCI,
+            )
+            radio.bind((self.adapter, self.HCI_CHANNEL_RAW))
+            radio.settimeout(3)
+            return radio
+        except OSError as error:
+            raise RuntimeError(
+                f"could not open raw HCI access to hci{self.adapter}: {error}; "
+                "disable Protection mode and verify full hardware access"
+            ) from error
+
+    def _command(self, radio: socket.socket, opcode: int, parameters: bytes) -> None:
+        # Receive command completion/status events for this opcode only.
+        event_filter = struct.pack(
+            "=IIIH", 1 << self.HCI_EVENT_PKT, 0xFFFFFFFF, 0xFFFFFFFF, opcode
+        )
+        radio.setsockopt(self.SOL_HCI, socket.HCI_FILTER, event_filter)
+        radio.sendall(
+            bytes((self.HCI_COMMAND_PKT,))
+            + struct.pack("<HB", opcode, len(parameters))
+            + parameters
+        )
+
+        while True:
+            packet = radio.recv(260)
+            if len(packet) < 3 or packet[0] != self.HCI_EVENT_PKT:
+                continue
+            event = packet[1]
+            if event == self.EVT_CMD_COMPLETE and len(packet) >= 7:
+                completed_opcode = struct.unpack_from("<H", packet, 4)[0]
+                if completed_opcode != opcode:
+                    continue
+                status = packet[6]
+                break
+            if event == self.EVT_CMD_STATUS and len(packet) >= 7:
+                completed_opcode = struct.unpack_from("<H", packet, 5)[0]
+                if completed_opcode != opcode:
+                    continue
+                status = packet[3]
+                break
+
+        if status:
+            raise RuntimeError(
+                f"hci{self.adapter} rejected Bluetooth command 0x{opcode:04x} "
+                f"with status 0x{status:02x}"
+            )
+
+    def send(self, manufacturer_data: bytes) -> None:
+        payload = raw_advertisement(manufacturer_data)
+        if len(payload) != 31:
+            raise RuntimeError("legacy Bluetooth advertising payload must be 31 bytes")
+
+        # Bluetooth Core legacy LE controller commands.
+        set_parameters = self._opcode(0x08, 0x0006)
+        set_data = self._opcode(0x08, 0x0008)
+        set_enable = self._opcode(0x08, 0x000A)
+        parameters = struct.pack(
+            "<HHBBB6sBB",
+            0x20,  # 20 ms minimum interval
+            0x30,  # 30 ms maximum interval
+            0x03,  # ADV_NONCONN_IND
+            0x00,  # public own address
+            0x00,
+            bytes(6),
+            0x07,  # advertise on channels 37, 38, and 39
+            0x00,
+        )
+
+        radio = self._open()
+        enabled = False
+        try:
+            # Clear an advertisement a previous interrupted run may have left on.
+            try:
+                self._command(radio, set_enable, b"\x00")
+            except RuntimeError:
+                pass
+            self._command(radio, set_parameters, parameters)
+            self._command(radio, set_data, bytes((len(payload),)) + payload)
+            self._command(radio, set_enable, b"\x01")
+            enabled = True
+            time.sleep(self.duration)
+        except socket.timeout as error:
+            raise RuntimeError(
+                f"hci{self.adapter} did not complete a raw Bluetooth command"
+            ) from error
+        finally:
+            if enabled:
+                try:
+                    self._command(radio, set_enable, b"\x00")
+                except (OSError, RuntimeError, socket.timeout):
+                    pass
+            radio.close()
 
 
 class BluezAdvertiser:

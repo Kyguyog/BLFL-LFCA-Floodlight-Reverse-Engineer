@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1
+
+- Fall back automatically to direct legacy HCI commands when an HA OS adapter
+  does not complete BlueZ's extended advertising management command.
+- Preserve the proven non-connectable PDU, exact payload, and 20-30 ms interval
+  in the fallback transmitter.
+
 ## 0.3.0
 
 - Request full hardware access so HA OS can expose the Bluetooth management

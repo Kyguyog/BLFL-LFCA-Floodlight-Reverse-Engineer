@@ -24,7 +24,9 @@ BRMesh control advertisements for this app.
 - `adapter_index`: Linux Bluetooth adapter number; `0` means `hci0`.
 - `radio_backend`: `bluez` uses HA OS's host Bluetooth service and is the
   restricted fallback. `btmgmt` is the default and the only backend known to
-  produce the exact non-connectable packet accepted by this floodlight.
+  produce the exact non-connectable packet accepted by this floodlight. If the
+  adapter does not complete extended management commands, `btmgmt` automatically
+  switches to an equivalent raw legacy HCI transmitter.
 - `advertise_seconds`: How long each command is repeated. `1.0` is the proven
   reliable value; lower values respond faster but may be less reliable.
 - `mqtt_topic_prefix`: Root topic used by the bridge. Usually leave this as
