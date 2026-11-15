@@ -26,7 +26,8 @@ BRMesh control advertisements for this app.
   restricted fallback. `btmgmt` is the default and the only backend known to
   produce the exact non-connectable packet accepted by this floodlight. If the
   adapter does not complete extended management commands, `btmgmt` automatically
-  switches to an equivalent raw legacy HCI transmitter.
+  switches to a raw legacy HCI transmitter at the controller-compatible 100 ms
+  interval.
 - `advertise_seconds`: How long each command is repeated. `1.0` is the proven
   reliable value; lower values respond faster but may be less reliable.
 - `mqtt_topic_prefix`: Root topic used by the bridge. Usually leave this as

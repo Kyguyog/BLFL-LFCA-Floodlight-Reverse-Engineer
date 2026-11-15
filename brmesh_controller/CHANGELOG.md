@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.3
+
+- Use the controller-required 100 ms minimum interval for legacy
+  `ADV_NONCONN_IND` fallback advertisements.
+
 ## 0.3.2
 
 - Pad the raw Linux HCI socket filter to its required 16-byte ABI size.
@@ -8,8 +13,8 @@
 
 - Fall back automatically to direct legacy HCI commands when an HA OS adapter
   does not complete BlueZ's extended advertising management command.
-- Preserve the proven non-connectable PDU, exact payload, and 20-30 ms interval
-  in the fallback transmitter.
+- Preserve the proven non-connectable PDU and exact payload in the fallback
+  transmitter.
 
 ## 0.3.0
 

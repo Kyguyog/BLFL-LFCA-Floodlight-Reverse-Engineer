@@ -318,8 +318,8 @@ class HciAdvertiser:
         set_enable = self._opcode(0x08, 0x000A)
         parameters = struct.pack(
             "<HHBBB6sBB",
-            0x20,  # 20 ms minimum interval
-            0x30,  # 30 ms maximum interval
+            0x00A0,  # 100 ms: legacy ADV_NONCONN_IND minimum
+            0x00A0,
             0x03,  # ADV_NONCONN_IND
             0x00,  # public own address
             0x00,

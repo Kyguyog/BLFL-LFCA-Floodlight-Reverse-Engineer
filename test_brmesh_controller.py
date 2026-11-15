@@ -38,7 +38,7 @@ class HciAdvertiserTests(unittest.TestCase):
         opcodes = [struct.unpack_from("<H", packet, 1)[0] for packet in radio.commands]
         self.assertEqual(opcodes, [0x200A, 0x2006, 0x2008, 0x200A, 0x200A])
         parameters = radio.commands[1][4:]
-        self.assertEqual(parameters[:5], b"\x20\x00\x30\x00\x03")
+        self.assertEqual(parameters[:5], b"\xa0\x00\xa0\x00\x03")
         data = radio.commands[2][4:]
         self.assertEqual(data[0], 31)
         self.assertEqual(data[1:8].hex(), "0201021bfff0ff")
