@@ -254,7 +254,12 @@ class BluezAdvertiser:
                         "org.freedesktop.DBus.Error.InvalidArgs"
                     )
                 return {
-                    "Type": dbus.String("broadcast"),
+                    # BlueZ rejects a raw Data entry for the managed flags AD
+                    # type on some HA OS releases. Peripheral + Discoverable
+                    # makes BlueZ generate flags 0x02 ahead of manufacturer
+                    # data instead.
+                    "Type": dbus.String("peripheral"),
+                    "Discoverable": dbus.Boolean(True),
                     "ManufacturerData": dbus.Dictionary(
                         {
                             dbus.UInt16(0xFFF0): dbus.Array(
@@ -262,16 +267,6 @@ class BluezAdvertiser:
                             )
                         },
                         signature="qv",
-                    ),
-                    # Explicit AD type 0x01 keeps the required flags before
-                    # manufacturer AD type 0xff.
-                    "Data": dbus.Dictionary(
-                        {
-                            dbus.Byte(0x01): dbus.Array(
-                                (dbus.Byte(0x02),), signature="y"
-                            )
-                        },
-                        signature="yv",
                     ),
                     "MinInterval": dbus.UInt32(20),
                     "MaxInterval": dbus.UInt32(30),

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- Let BlueZ generate the flags AD structure instead of supplying reserved AD
+  type `0x01` through the generic `Data` property, which HA OS rejected while
+  parsing the advertisement.
+
 ## 0.2.0
 
 - Add a host BlueZ D-Bus advertising backend for Home Assistant OS.
