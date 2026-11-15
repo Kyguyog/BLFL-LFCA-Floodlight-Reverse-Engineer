@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2
+
+- Use a non-connectable BlueZ broadcast while retaining BlueZ-managed flags,
+  matching the PDU type accepted by the floodlight.
+
 ## 0.2.1
 
 - Let BlueZ generate the flags AD structure instead of supplying reserved AD

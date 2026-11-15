@@ -255,10 +255,10 @@ class BluezAdvertiser:
                     )
                 return {
                     # BlueZ rejects a raw Data entry for the managed flags AD
-                    # type on some HA OS releases. Peripheral + Discoverable
-                    # makes BlueZ generate flags 0x02 ahead of manufacturer
-                    # data instead.
-                    "Type": dbus.String("peripheral"),
+                    # type on some HA OS releases. Broadcast + Discoverable
+                    # makes BlueZ generate flags 0x02 while keeping the PDU
+                    # non-connectable, matching the proven btmgmt packet.
+                    "Type": dbus.String("broadcast"),
                     "Discoverable": dbus.Boolean(True),
                     "ManufacturerData": dbus.Dictionary(
                         {
