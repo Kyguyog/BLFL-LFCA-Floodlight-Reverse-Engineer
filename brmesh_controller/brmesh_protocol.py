@@ -310,12 +310,8 @@ class LightCommandState:
 
 @dataclass
 class WhiteCommandState:
-    """Convert Home Assistant color temperature to FastCon white channels."""
+    """Switch an RGBW FastCon light to its dedicated white LEDs."""
 
-    MIN_KELVIN = 2700
-    MAX_KELVIN = 6500
-
-    kelvin: int = 4600
     brightness: float = 100
 
     def command_from_json(self, payload: dict) -> bytes:
@@ -326,19 +322,9 @@ class WhiteCommandState:
             raw_brightness = max(0, min(255, int(payload["brightness"])))
             self.brightness = raw_brightness * 100 / 255
 
-        if "color_temp" in payload:
-            self.kelvin = max(
-                self.MIN_KELVIN,
-                min(self.MAX_KELVIN, int(payload["color_temp"])),
-            )
-
-        cold = round(
-            (self.kelvin - self.MIN_KELVIN)
-            * 255
-            / (self.MAX_KELVIN - self.MIN_KELVIN)
-        )
-        warm = 255 - cold
-        return command_white(warm, cold, self.brightness)
+        # Device type 43169 is RGBW, not tunable CCT. The BRmesh app's
+        # captured white-mode payload sets both protocol white bytes to 0x7f.
+        return command_white(0x7F, 0x7F, self.brightness)
 
 
 class BluezScanner:

@@ -75,31 +75,25 @@ class LightCommandStateTests(unittest.TestCase):
         self.assertEqual(state.command_from_json({"state": "ON"}), expected)
 
 class WhiteCommandStateTests(unittest.TestCase):
-    def test_cool_white_and_brightness(self):
+    def test_fixed_rgbw_white_payload_and_brightness(self):
         state = WhiteCommandState()
         command = state.command_from_json(
             {
                 "state": "ON",
                 "brightness": 255,
-                "color_temp": 6500,
+                "white": 255,
             }
         )
-        self.assertEqual(command, bytes((0xFF, 0, 0, 0, 0, 255)))
+        self.assertEqual(command, bytes((0xFF, 0, 0, 0, 0x7F, 0x7F)))
 
         dimmed = state.command_from_json({"state": "ON", "brightness": 128})
-        self.assertEqual(dimmed[1:], bytes((0, 0, 0, 0, 255)))
+        self.assertEqual(dimmed[1:], bytes((0, 0, 0, 0x7F, 0x7F)))
 
-    def test_warm_white_power_cycle_and_midpoint(self):
+    def test_white_power_cycle_preserves_brightness(self):
         state = WhiteCommandState()
-        warm = state.command_from_json(
-            {"state": "ON", "color_temp": 2700}
-        )
-        self.assertEqual(warm, bytes((0xFF, 0, 0, 0, 255, 0)))
+        white = state.command_from_json({"state": "ON", "brightness": 64})
         self.assertEqual(state.command_from_json({"state": "OFF"}), b"\0")
-        self.assertEqual(state.command_from_json({"state": "ON"}), warm)
-
-        midpoint = state.command_from_json({"state": "ON", "color_temp": 4600})
-        self.assertEqual(midpoint, bytes((0xFF, 0, 0, 0, 127, 128)))
+        self.assertEqual(state.command_from_json({"state": "ON"}), white)
 
 
 if __name__ == "__main__":

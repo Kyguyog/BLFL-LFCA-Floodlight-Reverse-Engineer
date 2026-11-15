@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.2
+
+- Treat discovered type 43169 floodlights as RGBW rather than tunable CCT.
+- Use the BRmesh app's exact fixed `7f 7f` white-mode channel payload.
+
 ## 0.5.1
 
 - Restore the proven RGB entity command behavior.
