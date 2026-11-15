@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+
+- Restore the proven RGB entity command behavior.
+- Expose warm/cool-white LEDs as a separate color-temperature light entity,
+  avoiding Home Assistant's all-zero RGBWW power-on payload.
+
 ## 0.5.0
 
 - Expose each floodlight as an RGBWW Home Assistant light so its dedicated

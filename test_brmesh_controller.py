@@ -2,7 +2,11 @@ import struct
 import unittest
 from unittest.mock import patch
 
-from brmesh_controller.brmesh_protocol import HciAdvertiser, LightCommandState
+from brmesh_controller.brmesh_protocol import (
+    HciAdvertiser,
+    LightCommandState,
+    WhiteCommandState,
+)
 
 
 class FakeHciSocket:
@@ -70,13 +74,14 @@ class LightCommandStateTests(unittest.TestCase):
         self.assertEqual(state.command_from_json({"state": "OFF"}), b"\0")
         self.assertEqual(state.command_from_json({"state": "ON"}), expected)
 
+class WhiteCommandStateTests(unittest.TestCase):
     def test_cool_white_and_brightness(self):
-        state = LightCommandState()
+        state = WhiteCommandState()
         command = state.command_from_json(
             {
                 "state": "ON",
                 "brightness": 255,
-                "color": {"r": 0, "g": 0, "b": 0, "c": 255, "w": 0},
+                "color_temp": 6500,
             }
         )
         self.assertEqual(command, bytes((0xFF, 0, 0, 0, 0, 255)))
@@ -84,19 +89,17 @@ class LightCommandStateTests(unittest.TestCase):
         dimmed = state.command_from_json({"state": "ON", "brightness": 128})
         self.assertEqual(dimmed[1:], bytes((0, 0, 0, 0, 255)))
 
-    def test_warm_white_and_switch_back_to_rgb(self):
-        state = LightCommandState()
+    def test_warm_white_power_cycle_and_midpoint(self):
+        state = WhiteCommandState()
         warm = state.command_from_json(
-            {"state": "ON", "color": {"r": 0, "g": 0, "b": 0, "c": 0, "w": 255}}
+            {"state": "ON", "color_temp": 2700}
         )
         self.assertEqual(warm, bytes((0xFF, 0, 0, 0, 255, 0)))
         self.assertEqual(state.command_from_json({"state": "OFF"}), b"\0")
         self.assertEqual(state.command_from_json({"state": "ON"}), warm)
 
-        red = state.command_from_json(
-            {"state": "ON", "color": {"r": 255, "g": 0, "b": 0, "c": 0, "w": 0}}
-        )
-        self.assertEqual(red, bytes((0xFF, 0, 255, 0, 0, 0)))
+        midpoint = state.command_from_json({"state": "ON", "color_temp": 4600})
+        self.assertEqual(midpoint, bytes((0xFF, 0, 0, 0, 127, 128)))
 
 
 if __name__ == "__main__":

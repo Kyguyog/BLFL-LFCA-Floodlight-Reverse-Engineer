@@ -282,13 +282,11 @@ def command_white(warm: int, cold: int, brightness: float = 100) -> bytes:
 
 @dataclass
 class LightCommandState:
-    """Keep RGBWW fields required by FastCon brightness commands."""
+    """Keep the RGB fields required by FastCon brightness commands."""
 
     red: int = 255
     green: int = 255
     blue: int = 255
-    warm: int = 0
-    cold: int = 0
     brightness: float = 100
 
     def command_from_json(self, payload: dict) -> bytes:
@@ -301,19 +299,46 @@ class LightCommandState:
 
         color = payload.get("color")
         if color is not None:
-            self.red = int(color.get("r", 0))
-            self.green = int(color.get("g", 0))
-            self.blue = int(color.get("b", 0))
-            # Home Assistant names RGBWW channels c=cool and w=warm.
-            # FastCon stores them in the opposite order: warm, cold.
-            self.cold = int(color.get("c", 0))
-            self.warm = int(color.get("w", 0))
+            self.red = int(color["r"])
+            self.green = int(color["g"])
+            self.blue = int(color["b"])
 
         # This lamp ignores the short one-byte level command. Resending the
-        # remembered channels applies brightness without changing color mode.
-        if self.warm or self.cold:
-            return command_white(self.warm, self.cold, self.brightness)
+        # remembered RGB channels applies brightness without changing color.
         return command_rgb(self.red, self.green, self.blue, self.brightness)
+
+
+@dataclass
+class WhiteCommandState:
+    """Convert Home Assistant color temperature to FastCon white channels."""
+
+    MIN_KELVIN = 2700
+    MAX_KELVIN = 6500
+
+    kelvin: int = 4600
+    brightness: float = 100
+
+    def command_from_json(self, payload: dict) -> bytes:
+        if str(payload.get("state", "ON")).upper() == "OFF":
+            return command_power(False)
+
+        if "brightness" in payload:
+            raw_brightness = max(0, min(255, int(payload["brightness"])))
+            self.brightness = raw_brightness * 100 / 255
+
+        if "color_temp" in payload:
+            self.kelvin = max(
+                self.MIN_KELVIN,
+                min(self.MAX_KELVIN, int(payload["color_temp"])),
+            )
+
+        cold = round(
+            (self.kelvin - self.MIN_KELVIN)
+            * 255
+            / (self.MAX_KELVIN - self.MIN_KELVIN)
+        )
+        warm = 255 - cold
+        return command_white(warm, cold, self.brightness)
 
 
 class BluezScanner:

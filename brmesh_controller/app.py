@@ -22,6 +22,7 @@ from brmesh_protocol import (
     BtmgmtAdvertiser,
     FastConBuilder,
     LightCommandState,
+    WhiteCommandState,
     is_light_type,
     parse_discovery,
     parse_heartbeat,
@@ -29,7 +30,7 @@ from brmesh_protocol import (
 )
 
 
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 LOG = logging.getLogger("brmesh-controller")
 
@@ -54,6 +55,7 @@ class ManagedLight:
     device_id: str = ""
     device_key: str = ""
     state: LightCommandState = field(default_factory=LightCommandState, repr=False)
+    white_state: WhiteCommandState = field(default_factory=WhiteCommandState, repr=False)
 
     def saved(self) -> dict:
         return {
@@ -188,7 +190,7 @@ class Bridge:
                 "command_topic": f"{self.light_base(light)}/set",
                 "schema": "json",
                 "brightness": True,
-                "supported_color_modes": ["rgbww"],
+                "supported_color_modes": ["rgb"],
                 "optimistic": True,
                 "availability_topic": self.availability_topic,
                 "device": {
@@ -232,11 +234,38 @@ class Bridge:
             separators=(",", ":"),
         )
 
+    def white_discovery_topic(self, light: ManagedLight) -> str:
+        return f"homeassistant/light/brmesh/{light.uid}_white/config"
+
+    def white_command_topic(self, light: ManagedLight) -> str:
+        return f"{self.light_base(light)}/white/set"
+
+    def white_discovery_payload(self, light: ManagedLight) -> str:
+        payload = json.loads(self.light_discovery_payload(light))
+        payload.update(
+            {
+                "name": "White LEDs",
+                "unique_id": f"brmesh_{light.uid}_white",
+                "command_topic": self.white_command_topic(light),
+                "supported_color_modes": ["color_temp"],
+                "color_temp_kelvin": True,
+                "min_kelvin": WhiteCommandState.MIN_KELVIN,
+                "max_kelvin": WhiteCommandState.MAX_KELVIN,
+            }
+        )
+        return json.dumps(payload, separators=(",", ":"))
+
     def publish_light(self, light: ManagedLight) -> None:
         self.client.subscribe(f"{self.light_base(light)}/set")
+        self.client.subscribe(self.white_command_topic(light))
         self.client.publish(
             self.light_discovery_topic(light),
             self.light_discovery_payload(light),
+            retain=True,
+        )
+        self.client.publish(
+            self.white_discovery_topic(light),
+            self.white_discovery_payload(light),
             retain=True,
         )
 
@@ -278,9 +307,16 @@ class Bridge:
                 light = next(
                     item
                     for item in self.lights
-                    if message.topic == f"{self.light_base(item)}/set"
+                    if message.topic
+                    in {
+                        f"{self.light_base(item)}/set",
+                        self.white_command_topic(item),
+                    }
                 )
-                command = light.state.command_from_json(payload)
+                if message.topic == self.white_command_topic(light):
+                    command = light.white_state.command_from_json(payload)
+                else:
+                    command = light.state.command_from_json(payload)
                 self.enqueue(("light", light.address, command))
         except StopIteration:
             LOG.warning("Ignoring command for unknown MQTT topic %s", message.topic)
