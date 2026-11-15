@@ -1,7 +1,9 @@
 import importlib.util
 import pathlib
+import subprocess
 import sys
 import unittest
+from unittest.mock import patch
 
 
 MODULE_PATH = pathlib.Path(__file__).parent / "brmesh_controller" / "brmesh_protocol.py"
@@ -27,6 +29,18 @@ class HomeAssistantProtocolTests(unittest.TestCase):
         self.assertEqual(protocol.parse_key("12:34:56:78"), bytes.fromhex("12345678"))
         with self.assertRaises(ValueError):
             protocol.parse_key("1234")
+
+    @patch.object(protocol.time, "sleep")
+    @patch.object(protocol.subprocess, "run")
+    def test_advertiser_does_not_remove_before_add(self, run, sleep):
+        run.return_value = subprocess.CompletedProcess([], 0, "", "")
+        advertiser = protocol.BtmgmtAdvertiser(1.0, 0)
+        advertiser.send(bytes(24))
+
+        commands = [item.args[0] for item in run.call_args_list]
+        self.assertEqual(commands[0][3], "add-ext-adv-params")
+        self.assertEqual(commands[1][3], "add-ext-adv-data")
+        self.assertEqual(commands[2][3:], ["rm-adv", "1"])
 
 
 if __name__ == "__main__":

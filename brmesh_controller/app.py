@@ -81,7 +81,7 @@ class Bridge:
                 },
                 "origin": {
                     "name": "BRMesh Floodlight Controller",
-                    "sw_version": "0.1.0",
+                    "sw_version": "0.1.1",
                     "support_url": "https://github.com/Kyguyog/BLFL-LFCA-Floodlight-Reverse-Engineer",
                 },
             },

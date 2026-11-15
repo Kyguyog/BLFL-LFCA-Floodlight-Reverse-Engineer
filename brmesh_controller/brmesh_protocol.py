@@ -153,13 +153,22 @@ class BtmgmtAdvertiser:
         self.instance = instance
 
     def _run(self, arguments: list[str], action: str, *, check: bool = True) -> None:
-        result = subprocess.run(
-            ["btmgmt", "--index", str(self.adapter), *arguments],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
+        try:
+            result = subprocess.run(
+                ["btmgmt", "--index", str(self.adapter), *arguments],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        except subprocess.TimeoutExpired as error:
+            if check:
+                raise RuntimeError(
+                    f"btmgmt timed out while trying to {action}; verify that "
+                    f"hci{self.adapter} exists inside Home Assistant OS and is "
+                    "a local adapter, not an ESPHome Bluetooth proxy"
+                ) from error
+            return
         if check and result.returncode:
             detail = (result.stderr or result.stdout).strip()
             raise RuntimeError(f"btmgmt could not {action}: {detail}")
@@ -167,8 +176,6 @@ class BtmgmtAdvertiser:
     def send(self, manufacturer_data: bytes) -> None:
         payload = raw_advertisement(manufacturer_data)
         added = False
-        # Clear an instance left behind if the app was killed mid-transmission.
-        self._run(["rm-adv", str(self.instance)], "clear stale advertisement", check=False)
         try:
             self._run(
                 [
