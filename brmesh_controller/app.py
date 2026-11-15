@@ -41,7 +41,7 @@ class Bridge:
         self.name = env("BRMESH_DEVICE_NAME")
         self.adapter = int(env("BRMESH_ADAPTER_INDEX", "0"))
         self.duration = float(env("BRMESH_ADVERTISE_SECONDS", "1.0"))
-        self.radio_backend = env("BRMESH_RADIO_BACKEND", "bluez")
+        self.radio_backend = env("BRMESH_RADIO_BACKEND", "btmgmt")
         prefix = env("BRMESH_MQTT_PREFIX", "brmesh").strip("/")
         self.object_id = f"light_{self.address}"
         self.base_topic = f"{prefix}/{self.object_id}"
@@ -88,7 +88,7 @@ class Bridge:
                 },
                 "origin": {
                     "name": "BRMesh Floodlight Controller",
-                    "sw_version": "0.2.2",
+                    "sw_version": "0.3.0",
                     "support_url": "https://github.com/Kyguyog/BLFL-LFCA-Floodlight-Reverse-Engineer",
                 },
             },

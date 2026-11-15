@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0
+
+- Request full hardware access so HA OS can expose the Bluetooth management
+  socket required by the proven `btmgmt` transmitter.
+- Make `btmgmt` the default backend. Protection mode must be disabled.
+
 ## 0.2.2
 
 - Use a non-connectable BlueZ broadcast while retaining BlueZ-managed flags,

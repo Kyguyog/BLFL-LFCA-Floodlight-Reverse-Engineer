@@ -23,8 +23,8 @@ BRMesh control advertisements for this app.
 - `device_name`: The name shown in Home Assistant.
 - `adapter_index`: Linux Bluetooth adapter number; `0` means `hci0`.
 - `radio_backend`: `bluez` uses HA OS's host Bluetooth service and is the
-  default. `btmgmt` is the raw backend proven on ordinary Linux, but some HA OS
-  installations do not expose its management socket to Apps.
+  restricted fallback. `btmgmt` is the default and the only backend known to
+  produce the exact non-connectable packet accepted by this floodlight.
 - `advertise_seconds`: How long each command is repeated. `1.0` is the proven
   reliable value; lower values respond faster but may be less reliable.
 - `mqtt_topic_prefix`: Root topic used by the bridge. Usually leave this as
@@ -32,6 +32,14 @@ BRMesh control advertisements for this app.
 
 Save the options, start the app, and inspect its Log tab. The new light should
 appear under **Settings > Devices & services > MQTT**.
+
+## Protection mode
+
+This app requires **Protection mode to be disabled** on its Info page. The
+FastCon lamp requires an exact raw Bluetooth management advertisement that the
+host BlueZ D-Bus API cannot reproduce. The app therefore requests full hardware
+access and the `NET_ADMIN`/`NET_RAW` capabilities. Only install it from source
+you trust.
 
 ## Limitations
 
