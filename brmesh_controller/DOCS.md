@@ -28,6 +28,9 @@ BRMesh control advertisements for this app.
   adapter does not complete extended management commands, `btmgmt` automatically
   switches to a raw legacy HCI transmitter at the controller-compatible 100 ms
   interval.
+- `keep_manual_light`: Keep the compatibility entity created from `address` and
+  `device_name`. Turn this off to remove it and use only automatically paired
+  lights. The address and name fields remain visible but are ignored.
 - `auto_pair`: When enabled, a discovered light is assigned an unused mesh
   address and bound to the configured mesh key automatically.
 - `advertise_seconds`: How long each command is repeated. `1.0` is the proven

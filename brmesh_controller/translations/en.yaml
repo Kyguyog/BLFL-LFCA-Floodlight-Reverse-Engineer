@@ -14,6 +14,9 @@ configuration:
   radio_backend:
     name: Radio backend
     description: Use btmgmt with Protection mode off; bluez is a restricted fallback
+  keep_manual_light:
+    name: Keep manually configured light
+    description: Keep the compatibility light created from the address and device name fields
   auto_pair:
     name: Automatically pair discovered lights
     description: Bind lights found in their power-on pairing window to this mesh key

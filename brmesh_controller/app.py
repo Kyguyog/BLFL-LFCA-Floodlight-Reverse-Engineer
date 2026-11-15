@@ -29,7 +29,7 @@ from brmesh_protocol import (
 )
 
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 LOG = logging.getLogger("brmesh-controller")
 
@@ -73,6 +73,8 @@ class Bridge:
         self.duration = float(env("BRMESH_ADVERTISE_SECONDS", "1.0"))
         self.radio_backend = env("BRMESH_RADIO_BACKEND", "btmgmt")
         self.auto_pair = env_bool("BRMESH_AUTO_PAIR", True)
+        self.keep_manual_light = env_bool("BRMESH_KEEP_MANUAL_LIGHT", True)
+        self.manual_address = int(env("BRMESH_ADDRESS"))
         self.prefix = env("BRMESH_MQTT_PREFIX", "brmesh").strip("/")
         self.availability_topic = f"{self.prefix}/controller/availability"
         self.scan_topic = f"{self.prefix}/controller/scan"
@@ -129,13 +131,20 @@ class Bridge:
         except (OSError, ValueError, KeyError, TypeError) as error:
             LOG.error("Could not load %s: %s", self.store_path, error)
 
-        if not lights:
-            address = int(env("BRMESH_ADDRESS"))
+        manual_uid = f"light_{self.manual_address}"
+        if not self.keep_manual_light:
+            filtered = [light for light in lights if light.uid != manual_uid]
+            if len(filtered) != len(lights):
+                LOG.info("Removed manually configured light at address %d", self.manual_address)
+                lights = filtered
+                self.save_lights(lights)
+
+        if not lights and self.keep_manual_light:
             lights.append(
                 ManagedLight(
-                    uid=f"light_{address}",
+                    uid=manual_uid,
                     name=env("BRMESH_DEVICE_NAME"),
-                    address=address,
+                    address=self.manual_address,
                 )
             )
             self.save_lights(lights)
@@ -242,6 +251,12 @@ class Bridge:
             self.scan_discovery_payload(),
             retain=True,
         )
+        if not self.keep_manual_light:
+            client.publish(
+                f"homeassistant/light/brmesh/light_{self.manual_address}/config",
+                "",
+                retain=True,
+            )
         with self.lock:
             for light in self.lights:
                 self.publish_light(light)

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+- Add a **Keep manually configured light** option. Disabling it removes the
+  original compatibility light from persistent storage and clears its retained
+  MQTT discovery record, leaving only automatically discovered lights.
+
 ## 0.4.0
 
 - Scan automatically at startup and publish a Home Assistant **Scan for lights**
