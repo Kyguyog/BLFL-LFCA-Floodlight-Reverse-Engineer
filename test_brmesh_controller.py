@@ -81,7 +81,6 @@ class WhiteCommandStateTests(unittest.TestCase):
             {
                 "state": "ON",
                 "brightness": 255,
-                "white": 255,
             }
         )
         self.assertEqual(command, bytes((0xFF, 0, 0, 0, 0x7F, 0x7F)))

@@ -30,7 +30,7 @@ from brmesh_protocol import (
 )
 
 
-VERSION = "0.5.2"
+VERSION = "0.5.3"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 LOG = logging.getLogger("brmesh-controller")
 
@@ -247,7 +247,7 @@ class Bridge:
                 "name": "White LEDs",
                 "unique_id": f"brmesh_{light.uid}_white",
                 "command_topic": self.white_command_topic(light),
-                "supported_color_modes": ["white"],
+                "supported_color_modes": ["brightness"],
             }
         )
         return json.dumps(payload, separators=(",", ":"))

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.3
+
+- Advertise the fixed-white helper as a brightness light, because current Home
+  Assistant rejects `white` as the only supported color mode.
+
 ## 0.5.2
 
 - Treat discovered type 43169 floodlights as RGBW rather than tunable CCT.
